@@ -1,0 +1,286 @@
+service: webcodex
+
+provider:
+  name: aws
+  stage: ${opt:stage, env:NODE_ENV, "dev"}
+  runtime: nodejs10.x
+  environment: ${file(./config/${self:provider.stage}.yml)}
+  memorySize: 256
+  timeout: 10
+  region: us-east-1
+
+plugins:
+  - serverless-pseudo-parameters
+  - serverless-iam-roles-per-function
+  - serverless-webpack
+  - serverless-scriptable-plugin
+  - serverless-apigw-binary
+
+package:
+  individually: true
+
+custom:
+  apigwBinary:
+    types:
+      - 'image/webp'
+  scriptHooks:
+    # before:package:createDeploymentArtifacts: npm run build
+  webpack:
+    webpackConfig: 'webpack.config.js'
+    includeModules:
+      forceExclude:
+        - aws-sdk
+        - chrome-aws-lambda
+    packager: 'npm'
+
+layers:
+  curl:
+    path: layers/curl-settings
+    description: 'utility functions'
+    compatibleRuntimes:
+      - nodejs8.10
+      - nodejs10.x
+    licenseInfo: MIT
+
+# TODO: move SNS access into read and write access
+sqsAccess: &sqsAccess
+  Effect: Allow
+  Action:
+    - sqs:*
+snsAccess: &snsAccess
+  Effect: Allow
+  Action:
+    - sns:*
+  Resource: arn:aws:sns:${opt:region, self:provider.region}:#{AWS::AccountId}:${self:provider.environment.AWS_SNS}
+dynamodbWriteAccess: &dynamodbWriteAccess
+  Effect: Allow
+  Action:
+    - dynamodb:GetItem
+    - dynamodb:PutItem
+    - dynamodb:UpdateItem
+  Resource: arn:aws:dynamodb:${opt:region, self:provider.region}:#{AWS::AccountId}:table/${self:provider.environment.AWS_DYNAMODB_TABLE}
+dynamodbReadAccess: &dynamodbReadAccess
+  Effect: Allow
+  Action:
+    - dynamodb:GetItem
+    - dynamodb:Scan
+    - dynamodb:Query
+  Resource: arn:aws:dynamodb:${opt:region, self:provider.region}:#{AWS::AccountId}:table/${self:provider.environment.AWS_DYNAMODB_TABLE}
+s3Access: &s3Access
+  Effect: Allow
+  Action:
+    - s3:*
+  Resource: 
+    - "arn:aws:s3:::${self:provider.environment.S3_SCREENSHOT_BUCKET}/*"
+    - "arn:aws:s3:::${self:provider.environment.S3_SCREENSHOT_BUCKET}"
+
+snsFunctionTemplate: &snsFunctionTemplate
+  iamRoleStatements:
+  - *snsAccess
+  - *dynamodbWriteAccess
+  events:
+    - sns: arn:aws:sns:${opt:region, self:provider.region}:#{AWS::AccountId}:${self:provider.environment.AWS_SNS}
+
+httpFunctionTemplate: &httpFunctionTemplate
+  iamRoleStatements:
+  - *snsAccess
+  - *dynamodbReadAccess
+
+
+functions:
+#  --------------------------------- daily functions -------------------------------------
+  sns-color-detection:
+    <<: *snsFunctionTemplate
+    memorySize: 2048
+    timeout: 75
+    runtime: nodejs8.10
+    environment: ${file(./config/fn.http-color-detection.yml)}
+    handler: functions/daily/color-detection.handler
+    layers:
+      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+    iamRoleStatements:
+    - *snsAccess
+    - *dynamodbWriteAccess
+    - *s3Access
+
+  sns-alexa-rank:
+    <<: *snsFunctionTemplate
+    timeout: 20
+    handler: functions/daily/alexa-ranking.handler
+    environment: ${file(./config/fn.alexa-ranking.yml)}
+
+  sns-technology-detection:
+    <<: *snsFunctionTemplate
+    environment: ${file(./config/fn.technology-detection.yml)}
+    handler: functions/daily/technology-detection.handler
+    memorySize: 2048
+    timeout: 75
+    runtime: nodejs8.10
+    layers:
+      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+
+  sns-color-bar:
+    <<: *snsFunctionTemplate
+    environment: ${file(./config/fn.color-bar.yml)}
+    handler: functions/daily/color-bar.handler
+    timeout: 15
+
+  sns-html-stats:
+    <<: *snsFunctionTemplate
+    timeout: 20
+    runtime: nodejs8.10
+    handler: functions/daily/html-stats.handler
+    environment: ${file(./config/fn.html-stats.yml)}
+
+  sns-lighthouse:
+    <<: *snsFunctionTemplate
+    runtime: nodejs8.10
+    memorySize: 2048
+    timeout: 60
+    handler: functions/daily/lighthouse.handler
+    layers:
+      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+    environment: ${file(./config/fn.lighthouse.yml)}
+
+  sns-css-stats:
+    <<: *snsFunctionTemplate
+    timeout: 50
+    memorySize: 1024
+    handler: functions/daily/css-stats.handler
+
+  sns-http-headers:
+    <<: *snsFunctionTemplate
+    handler: functions/daily/http-headers.handler
+    runtime: nodejs8.10
+
+  convert-images:
+    timeout: 60
+    memorySize: 2048
+    runtime: nodejs8.10
+    handler: functions/daily/convert-images.handler
+    environment: ${file(./config/fn.convert-images.yml)}
+    iamRoleStatements:
+      - *s3Access
+#  ---------------------------------------- HTTP Functions ---------------------------------------
+
+  http-color-detection:
+    environment: ${file(./config/fn.http-color-detection.yml)}
+    runtime: nodejs8.10
+    timeout: 60
+    memorySize: 1536
+    layers:
+      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+    handler: functions/api/color-detection.handler
+    iamRoleStatements:
+      - *snsAccess
+      - *dynamodbReadAccess
+      - Effect: Allow
+        Action:
+          - s3:*
+        Resource: 
+          - "arn:aws:s3:::webcodex-temporal/*"
+          - "arn:aws:s3:::webcodex-temporal"
+    events:
+      - http:
+          path: /try/color-detection/{domain}
+          method: GET
+          cors: true
+
+  http-color-bar:
+    timeout: 15
+    environment: ${file(./config/fn.color-bar.yml)}
+    handler: functions/api/color-bar.handler
+    events:
+      - http:
+          path: /try/color-bar/{domain}
+          method: GET
+          cors: true
+
+  http-technology-detection:
+    memorySize: 2048
+    timeout: 60
+    environment: ${file(./config/fn.technology-detection.yml)}
+    handler: functions/api/technology-detection.handler
+    runtime: nodejs8.10
+    layers:
+      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+    events:
+      - http:
+          path: /try/technology-detection/{domain}
+          method: GET
+          cors: true
+
+  http-html-stats:
+    timeout: 20
+    handler: functions/api/html-stats.handler
+    events:
+      - http:
+          path: /try/html-stats/{domain}
+          method: GET
+          cors: true
+
+
+  http-alexa-ranking:
+    handler: functions/api/alexa-ranking.handler
+    environment: ${file(./config/fn.alexa-ranking.yml)}
+    events:
+      - http:
+          path: /try/alexa-ranking/{domain}
+          method: GET
+          cors: true
+
+  http-http-headers:
+    handler: functions/api/http-headers.handler
+    runtime: nodejs8.10
+    events:
+      - http:
+          path: /try/http-headers/{domain}
+          method: GET
+          cors: true
+
+  http-css-stats:
+    timeout: 50
+    memorySize: 1024
+    handler: functions/api/css-stats.handler
+    events:
+      - http:
+          path: /try/css-stats/{domain}
+          method: GET
+          cors: true
+
+  http-lighthouse:
+    runtime: nodejs8.10
+    memorySize: 1536
+    timeout: 60
+    layers:
+      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+    handler: functions/api/lighthouse.handler
+    environment: ${file(./config/fn.lighthouse.yml)}
+    events:
+      - http:
+          path: /try/lighthouse/{domain}
+          method: GET
+          cors: true
+
+  http-latest-screenshot:
+    handler: functions/api/latest-screenshot.handler
+    environment: ${file(./config/fn.lighthouse.yml)}
+    iamRoleStatements:
+    - *snsAccess
+    - *dynamodbReadAccess
+    - *s3Access
+    events:
+      - http:
+          path: /try/latest-screenshot/{domain}
+          method: GET
+          cors: true
+
+  http-optimize-image:
+    runtime: nodejs8.10
+    handler: functions/api/optimize-image.handler
+    environment: ${file(./config/fn.http-optimize-image.yml)}
+    events:
+      - http:
+          path: /try/optimize-image
+          method: GET
+          cors: true
