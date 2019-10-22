@@ -149,6 +149,7 @@ export function httpResponse(statusCode, body, stringify) {
 }
 
 export async function getAlexaRanking(axios, JSDOM, domain) {
+  // TODO: this URL should be an environment variable
   const { data: html } = await axios.get(`https://www.alexa.com/siteinfo/${domain}`);
   const dom = new JSDOM(html);
   const domElement = dom.window.document.querySelector(process.env.ALEXA_RANK_DOM_SELECTOR);

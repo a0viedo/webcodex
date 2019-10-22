@@ -19,7 +19,6 @@ These functions are persisting the metrics into DynamoDB and are triggered by an
 There are two important types of functions included in this project: functions that run on a daily basis and functions that are triggered by HTTP requests. The goal is to be able to re-use as much shared logic as possible between these two different types. The `utils` module is where the shared logic between these two live. In order to bundle just the dependencies needed for a given function the project uses Webpack and defines the necessary imports on a per-function basis, passing these dependencies back to the `utils` module.
 
 ## Metrics
-### Alexa ranking
 ### Colors defined in the CSS
 To get the data for this metric a request is made to the website and all the stylesheets are aggregated. After that, the following  regular expression is used to match hexadecimal (e.g. both `#AAA` and `#AAAAAA), rgb and hsla definitions:
 ```
