@@ -125,7 +125,7 @@ export function getDateForToday(formatFn) {
 }
 
 export function domainToURL(domain) {
-  return `https://${domain}`;
+  return domain.includes('https://') ? domain : `https://${domain}`;
 }
 
 export function httpResponse(statusCode, body, stringify) {
