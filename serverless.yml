@@ -1,9 +1,9 @@
-service: webcodex
+service: codex
 
 provider:
   name: aws
   stage: ${opt:stage, env:NODE_ENV, "dev"}
-  runtime: nodejs10.x
+  runtime: nodejs12.x
   environment: ${file(./config/${self:provider.stage}.yml)}
   memorySize: 256
   timeout: 10
@@ -40,7 +40,11 @@ layers:
     compatibleRuntimes:
       - nodejs8.10
       - nodejs10.x
+      - nodejs12.x
     licenseInfo: MIT
+  canvas:
+    package:
+      artifact: layers/canvas-lib64-layer.zip
 
 # TODO: move SNS access into read and write access
 sqsAccess: &sqsAccess
@@ -93,7 +97,6 @@ functions:
     <<: *snsFunctionTemplate
     memorySize: 2048
     timeout: 75
-    runtime: nodejs8.10
     environment: ${file(./config/fn.http-color-detection.yml)}
     handler: functions/daily/color-detection.handler
     layers:
@@ -115,7 +118,6 @@ functions:
     handler: functions/daily/technology-detection.handler
     memorySize: 2048
     timeout: 75
-    runtime: nodejs8.10
     layers:
       - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
 
@@ -128,13 +130,11 @@ functions:
   sns-html-stats:
     <<: *snsFunctionTemplate
     timeout: 20
-    runtime: nodejs8.10
     handler: functions/daily/html-stats.handler
     environment: ${file(./config/fn.html-stats.yml)}
 
   sns-lighthouse:
     <<: *snsFunctionTemplate
-    runtime: nodejs8.10
     memorySize: 2048
     timeout: 60
     handler: functions/daily/lighthouse.handler
@@ -151,12 +151,10 @@ functions:
   sns-http-headers:
     <<: *snsFunctionTemplate
     handler: functions/daily/http-headers.handler
-    runtime: nodejs8.10
 
   convert-images:
     timeout: 60
     memorySize: 2048
-    runtime: nodejs8.10
     handler: functions/daily/convert-images.handler
     environment: ${file(./config/fn.convert-images.yml)}
     iamRoleStatements:
@@ -165,11 +163,10 @@ functions:
 
   http-color-detection:
     environment: ${file(./config/fn.http-color-detection.yml)}
-    runtime: nodejs8.10
     timeout: 60
     memorySize: 1536
     layers:
-      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+      - arn:aws:lambda:${self:provider.region}:764866452798:layer:chrome-aws-lambda:10
     handler: functions/api/color-detection.handler
     iamRoleStatements:
       - *snsAccess
@@ -201,9 +198,8 @@ functions:
     timeout: 60
     environment: ${file(./config/fn.technology-detection.yml)}
     handler: functions/api/technology-detection.handler
-    runtime: nodejs8.10
     layers:
-      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+      - arn:aws:lambda:${self:provider.region}:764866452798:layer:chrome-aws-lambda:10
     events:
       - http:
           path: /try/technology-detection/{domain}
@@ -213,16 +209,19 @@ functions:
   http-html-stats:
     timeout: 20
     handler: functions/api/html-stats.handler
+    layers:
+      - {Ref: CanvasLambdaLayer}
     events:
       - http:
           path: /try/html-stats/{domain}
           method: GET
           cors: true
 
-
   http-alexa-ranking:
     handler: functions/api/alexa-ranking.handler
     environment: ${file(./config/fn.alexa-ranking.yml)}
+    layers:
+      - {Ref: CanvasLambdaLayer}
     events:
       - http:
           path: /try/alexa-ranking/{domain}
@@ -231,7 +230,6 @@ functions:
 
   http-http-headers:
     handler: functions/api/http-headers.handler
-    runtime: nodejs8.10
     events:
       - http:
           path: /try/http-headers/{domain}
@@ -249,11 +247,10 @@ functions:
           cors: true
 
   http-lighthouse:
-    runtime: nodejs8.10
     memorySize: 1536
     timeout: 60
     layers:
-      - arn:aws:lambda:us-east-1:332013964457:layer:chrome-aws-lambda:1
+      - arn:aws:lambda:${self:provider.region}:764866452798:layer:chrome-aws-lambda:10
     handler: functions/api/lighthouse.handler
     environment: ${file(./config/fn.lighthouse.yml)}
     events:
@@ -276,7 +273,6 @@ functions:
           cors: true
 
   http-optimize-image:
-    runtime: nodejs8.10
     handler: functions/api/optimize-image.handler
     environment: ${file(./config/fn.http-optimize-image.yml)}
     events:

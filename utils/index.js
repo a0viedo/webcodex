@@ -125,7 +125,8 @@ export function getDateForToday(formatFn) {
 }
 
 export function domainToURL(domain) {
-  return domain.includes('https://') ? domain : `https://${decodeURIComponent(domain)}`;
+  const decodedDomain = decodeURIComponent(domain);
+  return decodedDomain.includes('https://') ? decodedDomain : `https://${decodedDomain}`;
 }
 
 export function httpResponse(statusCode, body, stringify) {
@@ -461,6 +462,7 @@ function threeDigitHexaToSixDigit(color) {
 }
 
 export async function getTechnologiesUsed(chrome, puppeteer, axios, allSettled, decompress, domain) {
+  console.log('technologies used', domain);
   const browser = await puppeteer.launch({
     args: chrome.args,
     defaultViewport: chrome.defaultViewport,
@@ -550,7 +552,7 @@ function mapTechnologyNames(str) {
     case 'VUEJS':
       return 'Vue.js';
     case 'VUEX':
-      return 'vuex';
+      return 'Vuex';
     case 'ANGULAR':
       return 'Angular';
     case 'SIZZLE':
@@ -573,6 +575,10 @@ function mapTechnologyNames(str) {
       return 'react-router';
     case 'VUEROUTER':
       return 'vue-router';
+    case 'NEXTJS':
+      return 'Next.js';
+    case 'NUXTJS':
+      return 'Nuxt.js';
     default:
       return str.toLowerCase();
   }
@@ -687,6 +693,7 @@ export async function getColorDetection(chromeLauncher, chrome, puppeteer, axios
     console.log('screenshot taken');
     const convertOutput = await runCommand(`convert /tmp/${getMD5(domain)}.png -scale 50x50! -depth 8 +dither -colors 8 -format "%c" histogram:info: | sed -n 's/^[ ]*\\(.*\\):.*[#]\\([0-9a-fA-F]*\\) .*$/\\1,#\\2/p' | sort -r -n -k 1 -t ","`);
 
+    console.log('convert output', convertOutput);
     const lines = convertOutput.split(/\r?\n|\r/g);
     const result = {
       screenshotPath,
