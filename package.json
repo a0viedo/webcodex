@@ -20,7 +20,7 @@
     "get-css": "^3.3.1",
     "imagemin": "^7.0.0",
     "imagemin-webp": "^5.1.0",
-    "jsdom": "^15.1.1",
+    "jsdom": "^16.5.0",
     "json-stringify-safe": "^5.0.1",
     "lighthouse": "https://github.com/a0viedo/lighthouse",
     "promise-all-settled": "^1.1.0",
