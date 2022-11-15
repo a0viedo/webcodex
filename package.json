@@ -35,7 +35,7 @@
     "@babel/core": "^7.5.5",
     "@babel/node": "^7.5.5",
     "@babel/preset-env": "^7.5.5",
-    "aws-sdk": "^2.503.0",
+    "aws-sdk": "^2.814.0",
     "chrome-aws-lambda": "^3.1.1",
     "dotyaml": "^1.0.0",
     "eslint": "^6.5.1",
